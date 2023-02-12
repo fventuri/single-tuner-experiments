@@ -295,7 +295,7 @@ int main(int argc, char *argv[])
 
     /* print settings */
     fprintf(stdout, "SerNo=%s hwVer=%d tuner=0x%02x\n", device.SerNo, device.hwVer, device.tuner);
-    fprintf(stdout, "LO=%.0lf BW=%d If=%d Dec=%d IFagc=%d IFgain=%d LNAgain=%d\n", rx_channel_params->tunerParams.rfFreq.rfHz, rx_channel_params->tunerParams.bwType, rx_channel_params->tunerParams.ifType, rx_channel_params->ctrlParams.decimation.decimationFactor, rx_channel_params->ctrlParams.agc.enable, rx_channel_params->tunerParams.gain.gRdB, rx_channel_params->tunerParams.gain.LNAstate);
+    fprintf(stdout, "SR=%.0lf LO=%.0lf BW=%d If=%d Dec=%d IFagc=%d IFgain=%d LNAgain=%d\n", device_params->devParams->fsFreq.fsHz, rx_channel_params->tunerParams.rfFreq.rfHz, rx_channel_params->tunerParams.bwType, rx_channel_params->tunerParams.ifType, rx_channel_params->ctrlParams.decimation.decimationFactor, rx_channel_params->ctrlParams.agc.enable, rx_channel_params->tunerParams.gain.gRdB, rx_channel_params->tunerParams.gain.LNAstate);
     fprintf(stdout, "DCenable=%d IQenable=%d dcCal=%d speedUp=%d trackTime=%d refreshRateTime=%d\n", (int)(rx_channel_params->ctrlParams.dcOffset.DCenable), (int)(rx_channel_params->ctrlParams.dcOffset.IQenable), (int)(rx_channel_params->tunerParams.dcOffsetTuner.dcCal), (int)(rx_channel_params->tunerParams.dcOffsetTuner.speedUp), rx_channel_params->tunerParams.dcOffsetTuner.trackTime, rx_channel_params->tunerParams.dcOffsetTuner.refreshRateTime);
 
     int init_ok = 1;
@@ -303,9 +303,16 @@ int main(int argc, char *argv[])
         fprintf(stderr, "unexpected change - tuner: 0x%02x -> 0x%02x\n", sdrplay_api_Tuner_A, device.tuner);
         init_ok = 0;
     }
-    if (device.rspDuoMode != sdrplay_api_RspDuoMode_Single_Tuner) {
-        fprintf(stderr, "unexpected change - rspDuoMode: 0x%02x -> 0x%02x\n", sdrplay_api_RspDuoMode_Single_Tuner, device.rspDuoMode);
-        init_ok = 0;
+    if (device.hwVer == SDRPLAY_RSPduo_ID) {
+        if (device.rspDuoMode != sdrplay_api_RspDuoMode_Single_Tuner) {
+            fprintf(stderr, "unexpected change - rspDuoMode: 0x%02x -> 0x%02x\n", sdrplay_api_RspDuoMode_Single_Tuner, device.rspDuoMode);
+            init_ok = 0;
+        }
+    } else {
+        if (device.rspDuoMode != sdrplay_api_RspDuoMode_Unknown) {
+            fprintf(stderr, "unexpected change - rspDuoMode: 0x%02x -> 0x%02x\n", sdrplay_api_RspDuoMode_Unknown, device.rspDuoMode);
+            init_ok = 0;
+        }
     }
     if (device.rspDuoSampleFreq != 0) {
         fprintf(stderr, "unexpected change - rspDuoSampleFreq: %.0lf -> %.0lf\n", 0.0, device.rspDuoSampleFreq);
