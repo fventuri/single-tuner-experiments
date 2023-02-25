@@ -13,8 +13,12 @@ message(STATUS "LIBSDRPLAY_LIBRARIES - ${LIBSDRPLAY_LIBRARIES}")
 set(CMAKE_BUILD_TYPE Release)
 add_compile_options(-Wall -Wextra -pedantic -Werror)
 
-set(SOURCE_FILES single_tuner_recorder.c)
 include_directories(${LIBSDRPLAY_INCLUDE_DIRS})
 
-add_executable(single_tuner_recorder ${SOURCE_FILES})
+set(SOURCE_FILES_RECORDER single_tuner_recorder.c)
+add_executable(single_tuner_recorder ${SOURCE_FILES_RECORDER})
 target_link_libraries(single_tuner_recorder ${LIBSDRPLAY_LIBRARIES})
+
+set(SOURCE_FILES_GAIN_CHANGES single_tuner_gain_changes.c)
+add_executable(single_tuner_gain_changes ${SOURCE_FILES_GAIN_CHANGES})
+target_link_libraries(single_tuner_gain_changes ${LIBSDRPLAY_LIBRARIES})
