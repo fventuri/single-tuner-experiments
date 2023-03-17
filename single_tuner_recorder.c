@@ -25,6 +25,8 @@
 #define UNUSED(x) (void)(x)
 #define MAX_PATH_SIZE 1024
 
+#define SIXTEEN_BITS_SIZE 65536
+
 typedef struct {
     struct timeval earliest_callback;
     struct timeval latest_callback;
@@ -41,9 +43,17 @@ typedef struct {
     long diff_threshold;
 } RXContextMeasureTimeDiff;
 
+typedef struct {
+    unsigned long long total_samples;
+    unsigned int next_sample_num;
+    unsigned long long *i_histogram;
+    unsigned long long *q_histogram;
+} RXContextSamplesHistogram;
+
 static void usage(const char* progname);
 static void rx_callback_record(short *xi, short *xq, sdrplay_api_StreamCbParamsT *params, unsigned int numSamples, unsigned int reset, void *cbContext);
 static void rx_callback_measure_time_diff(short *xi, short *xq, sdrplay_api_StreamCbParamsT *params, unsigned int numSamples, unsigned int reset, void *cbContext);
+static void rx_callback_samples_histogram(short *xi, short *xq, sdrplay_api_StreamCbParamsT *params, unsigned int numSamples, unsigned int reset, void *cbContext);
 static void event_callback(sdrplay_api_EventT eventId, sdrplay_api_TunerSelectT tuner, sdrplay_api_EventParamsT *params, void *cbContext);
 
 
@@ -68,9 +78,10 @@ int main(int argc, char *argv[])
     const char *output_file = NULL;
     int debug_enable = 0;
     int measure_time_diff_only = 0;
+    int samples_histogram_only = 0;
 
     int c;
-    while ((c = getopt(argc, argv, "s:r:d:i:b:g:l:DIy:f:x:o:LTh")) != -1) {
+    while ((c = getopt(argc, argv, "s:r:d:i:b:g:l:DIy:f:x:o:LTHh")) != -1) {
         switch (c) {
             case 's':
                 serial_number = optarg;
@@ -147,6 +158,9 @@ int main(int argc, char *argv[])
                 break;
             case 'T':
                 measure_time_diff_only = 1;
+                break;
+            case 'H':
+                samples_histogram_only = 1;
                 break;
 
             // help
@@ -294,9 +308,9 @@ int main(int argc, char *argv[])
     }
 
     /* print settings */
-    fprintf(stdout, "SerNo=%s hwVer=%d tuner=0x%02x\n", device.SerNo, device.hwVer, device.tuner);
-    fprintf(stdout, "SR=%.0lf LO=%.0lf BW=%d If=%d Dec=%d IFagc=%d IFgain=%d LNAgain=%d\n", device_params->devParams->fsFreq.fsHz, rx_channel_params->tunerParams.rfFreq.rfHz, rx_channel_params->tunerParams.bwType, rx_channel_params->tunerParams.ifType, rx_channel_params->ctrlParams.decimation.decimationFactor, rx_channel_params->ctrlParams.agc.enable, rx_channel_params->tunerParams.gain.gRdB, rx_channel_params->tunerParams.gain.LNAstate);
-    fprintf(stdout, "DCenable=%d IQenable=%d dcCal=%d speedUp=%d trackTime=%d refreshRateTime=%d\n", (int)(rx_channel_params->ctrlParams.dcOffset.DCenable), (int)(rx_channel_params->ctrlParams.dcOffset.IQenable), (int)(rx_channel_params->tunerParams.dcOffsetTuner.dcCal), (int)(rx_channel_params->tunerParams.dcOffsetTuner.speedUp), rx_channel_params->tunerParams.dcOffsetTuner.trackTime, rx_channel_params->tunerParams.dcOffsetTuner.refreshRateTime);
+    fprintf(stderr, "SerNo=%s hwVer=%d tuner=0x%02x\n", device.SerNo, device.hwVer, device.tuner);
+    fprintf(stderr, "SR=%.0lf LO=%.0lf BW=%d If=%d Dec=%d IFagc=%d IFgain=%d LNAgain=%d\n", device_params->devParams->fsFreq.fsHz, rx_channel_params->tunerParams.rfFreq.rfHz, rx_channel_params->tunerParams.bwType, rx_channel_params->tunerParams.ifType, rx_channel_params->ctrlParams.decimation.decimationFactor, rx_channel_params->ctrlParams.agc.enable, rx_channel_params->tunerParams.gain.gRdB, rx_channel_params->tunerParams.gain.LNAstate);
+    fprintf(stderr, "DCenable=%d IQenable=%d dcCal=%d speedUp=%d trackTime=%d refreshRateTime=%d\n", (int)(rx_channel_params->ctrlParams.dcOffset.DCenable), (int)(rx_channel_params->ctrlParams.dcOffset.IQenable), (int)(rx_channel_params->tunerParams.dcOffsetTuner.dcCal), (int)(rx_channel_params->tunerParams.dcOffsetTuner.speedUp), rx_channel_params->tunerParams.dcOffsetTuner.trackTime, rx_channel_params->tunerParams.dcOffsetTuner.refreshRateTime);
 
     int init_ok = 1;
     if (device.tuner != sdrplay_api_Tuner_A) {
@@ -415,13 +429,34 @@ int main(int argc, char *argv[])
         .diff_threshold = 5000000,   /* 5ms */
     };
 
+    RXContextSamplesHistogram rx_context_samples_histogram = {
+        .total_samples = 0,
+        .next_sample_num = 0xffffffff,
+        .i_histogram = NULL,
+        .q_histogram = NULL,
+    };
+
+    sdrplay_api_StreamCallback_t stream_callback_fn = NULL;
+    void *callback_ctx = NULL;
+
+    if (!(measure_time_diff_only || samples_histogram_only)) {
+        stream_callback_fn = rx_callback_record;
+        callback_ctx = &rx_context_record;
+    } else if (measure_time_diff_only) {
+        stream_callback_fn = rx_callback_measure_time_diff;
+        callback_ctx = &rx_context_measure_time_diff;
+    } else if (samples_histogram_only) {
+        stream_callback_fn = rx_callback_samples_histogram;
+        callback_ctx = &rx_context_samples_histogram;
+    }
+     
     sdrplay_api_CallbackFnsT callbackFns = {
-        !measure_time_diff_only ? rx_callback_record : rx_callback_measure_time_diff,
+        stream_callback_fn,
         NULL,
         event_callback
     };
 
-    if (!measure_time_diff_only) {
+    if (!(measure_time_diff_only || samples_histogram_only)) {
         if (output_file != NULL) {
             int fd = open(output_file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
             if (fd == -1) {
@@ -432,9 +467,22 @@ int main(int argc, char *argv[])
             }
             rx_context_record.output_fd = fd;
         }
+    } else if (measure_time_diff_only) {
+        ;
+    } else if (samples_histogram_only) {
+        unsigned long long *i_histogram = (unsigned long long *) malloc(SIXTEEN_BITS_SIZE * sizeof(unsigned long long));
+        unsigned long long *q_histogram = (unsigned long long *) malloc(SIXTEEN_BITS_SIZE * sizeof(unsigned long long));
+        for (int i = 0; i < SIXTEEN_BITS_SIZE; i++) {
+            i_histogram[i] = 0;
+        }
+        for (int i = 0; i < SIXTEEN_BITS_SIZE; i++) {
+            q_histogram[i] = 0;
+        }
+        rx_context_samples_histogram.i_histogram = i_histogram;
+        rx_context_samples_histogram.q_histogram = q_histogram;
     }
 
-    err = sdrplay_api_Init(device.dev, &callbackFns, !measure_time_diff_only ? (void *)&rx_context_record : (void *)&rx_context_measure_time_diff);
+    err = sdrplay_api_Init(device.dev, &callbackFns, callback_ctx);
     if (err != sdrplay_api_Success) {
         fprintf(stderr, "sdrplay_api_Init() failed: %s\n", sdrplay_api_GetErrorString(err));
         sdrplay_api_ReleaseDevice(&device);
@@ -456,7 +504,7 @@ int main(int argc, char *argv[])
     /* wait one second after sdrplay_api_Uninit() before closing the files */
     sleep(1);
 
-    if (!measure_time_diff_only) {
+    if (!(measure_time_diff_only || samples_histogram_only)) {
         if (rx_context_record.output_fd > 0) {
             if (close(rx_context_record.output_fd) == -1) {
                 fprintf(stderr, "close(%d) failed: %s\n", rx_context_record.output_fd, strerror(errno));
@@ -465,7 +513,7 @@ int main(int argc, char *argv[])
     }
 
     /* estimate actual sample rate */
-    if (!measure_time_diff_only) {
+    if (!(measure_time_diff_only || samples_histogram_only)) {
         double elapsed_sec = (rx_context_record.latest_callback.tv_sec - rx_context_record.earliest_callback.tv_sec) + 1e-6 * (rx_context_record.latest_callback.tv_usec - rx_context_record.earliest_callback.tv_usec);
         double actual_sample_rate = (double)(rx_context_record.total_samples) / elapsed_sec;
         int rounded_sample_rate_kHz = (int)(actual_sample_rate / 1000.0 + 0.5);
@@ -482,6 +530,28 @@ int main(int argc, char *argv[])
                 fprintf(stderr, "rename(%s, %s) failed: %s\n", output_file, new_filename, strerror(errno));
             }
         }
+    }
+
+    /* output sample values histograms */
+    if (samples_histogram_only) {
+        fprintf(stderr, "total_samples=%llu\n", rx_context_samples_histogram.total_samples);
+        fprintf(stdout, "# Sample values histogram:\n");
+        fprintf(stdout, "#\n");
+        unsigned long long i_total = 0;
+        unsigned long long q_total = 0;
+        for (int i = 0; i < SIXTEEN_BITS_SIZE; i++) {
+            unsigned long long i_bin_count = rx_context_samples_histogram.i_histogram[i];
+            unsigned long long q_bin_count = rx_context_samples_histogram.q_histogram[i];
+            i_total += i_bin_count;
+            q_total += q_bin_count;
+            if (i_bin_count || q_bin_count) {
+                fprintf(stdout, "%d\t%llu\t%llu\n", i - SIXTEEN_BITS_SIZE / 2,
+                       i_bin_count, q_bin_count);
+            }
+        }
+        fprintf(stderr, "total_i_samples_in_histogram=%llu total_q_samples_in_histogram=%llu\n", i_total, q_total);
+        free(rx_context_samples_histogram.i_histogram);
+        free(rx_context_samples_histogram.q_histogram);
     }
 
     err = sdrplay_api_LockDeviceApi();
@@ -533,6 +603,7 @@ static void usage(const char* progname)
     fprintf(stderr, "    -o <output file> (''SAMPLERATE' will be replaced by the estimated sample rate in kHz)\n");
     fprintf(stderr, "    -L enable SDRplay API debug log level (default: disabled)\n");
     fprintf(stderr, "    -T measure callback time difference only (no output) (default: disabled)\n");
+    fprintf(stderr, "    -H get histogram of sample values (no output) (default: disabled)\n");
     fprintf(stderr, "    -h show usage\n");
 }
 
@@ -618,6 +689,34 @@ static void rx_callback_measure_time_diff(short *xi, short *xq, sdrplay_api_Stre
     rxContext->prev_time.tv_sec = current_time.tv_sec;
     rxContext->prev_time.tv_nsec = current_time.tv_nsec;
     rxContext->callback_count++;
+}
+
+static void rx_callback_samples_histogram(short *xi, short *xq, sdrplay_api_StreamCbParamsT *params, unsigned int numSamples, unsigned int reset, void *cbContext)
+{
+    UNUSED(reset);
+
+    RXContextSamplesHistogram *rxContext = (RXContextSamplesHistogram *)cbContext;
+
+    rxContext->total_samples += numSamples;
+
+    /* check for dropped samples */
+    if (rxContext->next_sample_num != 0xffffffff && params->firstSampleNum != rxContext->next_sample_num) {
+        unsigned int dropped_samples;
+        if (rxContext->next_sample_num < params->firstSampleNum) {
+            dropped_samples = params->firstSampleNum - rxContext->next_sample_num;
+        } else {
+            dropped_samples = UINT_MAX - (params->firstSampleNum - rxContext->next_sample_num) + 1;
+        }
+        fprintf(stderr, "dropped %d samples\n", dropped_samples);
+    }
+    rxContext->next_sample_num = params->firstSampleNum + numSamples;
+
+    for (unsigned int i = 0; i < numSamples; i++) {
+        rxContext->i_histogram[xi[i] + SIXTEEN_BITS_SIZE / 2]++;
+    }
+    for (unsigned int i = 0; i < numSamples; i++) {
+        rxContext->q_histogram[xq[i] + SIXTEEN_BITS_SIZE / 2]++;
+    }
 }
 
 static void event_callback(sdrplay_api_EventT eventId, sdrplay_api_TunerSelectT tuner, sdrplay_api_EventParamsT *params, void *cbContext)
