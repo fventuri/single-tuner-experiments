@@ -31,6 +31,9 @@ These are the command line options for `single_tuner_recorder`:
     -f <center frequency>
     -x <streaming time (s)> (default: 10s)
     -o <output file> ('SAMPLERATE' will be replaced by the estimated sample rate in kHz)
+    -L enable SDRplay API debug log level (default: disabled)
+    -T measure callback time difference only (no output) (default: disabled)
+    -H get histogram of sample values (no output) (default: disabled)
 
 
 Here are some usage examples:
@@ -45,6 +48,10 @@ Here are some usage examples:
 ./single_tuner_recorder -r 8000000 -i 2048 -b 1536 -l 3 -f 162550000 -o noaa-8M-SAMPLERATEk.iq16
 ```
 
+- sample values histogram with a sample rate of 10Msps:
+```
+./single_tuner_recorder -H -r 10000000 -i 0 -b 8000 -l 0 -f 371000000
+```
 
 ## Copyright
 
