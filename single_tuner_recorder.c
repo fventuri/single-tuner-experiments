@@ -458,12 +458,17 @@ int main(int argc, char *argv[])
 
     if (!(measure_time_diff_only || samples_histogram_only)) {
         if (output_file != NULL) {
-            int fd = open(output_file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-            if (fd == -1) {
-                fprintf(stderr, "open(%s) for writing failed: %s\n", output_file, strerror(errno));
-                sdrplay_api_ReleaseDevice(&device);
-                sdrplay_api_Close();
-                exit(1);
+            int fd;
+            if (strcmp(output_file, "-") == 0) {
+                fd = STDOUT_FILENO;
+            } else {
+                fd = open(output_file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                if (fd == -1) {
+                    fprintf(stderr, "open(%s) for writing failed: %s\n", output_file, strerror(errno));
+                    sdrplay_api_ReleaseDevice(&device);
+                    sdrplay_api_Close();
+                    exit(1);
+                }
             }
             rx_context_record.output_fd = fd;
         }
@@ -535,8 +540,8 @@ int main(int argc, char *argv[])
     /* output sample values histograms */
     if (samples_histogram_only) {
         fprintf(stderr, "total_samples=%llu\n", rx_context_samples_histogram.total_samples);
-        fprintf(stdout, "# Sample values histogram:\n");
-        fprintf(stdout, "#\n");
+        fprintf(stderr, "# Sample values histogram:\n");
+        fprintf(stderr, "#\n");
         unsigned long long i_total = 0;
         unsigned long long q_total = 0;
         for (int i = 0; i < SIXTEEN_BITS_SIZE; i++) {
@@ -545,7 +550,7 @@ int main(int argc, char *argv[])
             i_total += i_bin_count;
             q_total += q_bin_count;
             if (i_bin_count || q_bin_count) {
-                fprintf(stdout, "%d\t%llu\t%llu\n", i - SIXTEEN_BITS_SIZE / 2,
+                fprintf(stderr, "%d\t%llu\t%llu\n", i - SIXTEEN_BITS_SIZE / 2,
                        i_bin_count, q_bin_count);
             }
         }
@@ -600,7 +605,7 @@ static void usage(const char* progname)
     fprintf(stderr, "    -y tuner DC offset compensation parameters <dcCal,speedUp,trackTime,refeshRateTime> (default: 3,0,1,2048)\n");
     fprintf(stderr, "    -f <center frequency>\n");
     fprintf(stderr, "    -x <streaming time (s)> (default: 10s)\n");
-    fprintf(stderr, "    -o <output file> (''SAMPLERATE' will be replaced by the estimated sample rate in kHz)\n");
+    fprintf(stderr, "    -o <output file> ('-' for stdout; 'SAMPLERATE' in the file name will be replaced by the estimated sample rate in kHz)\n");
     fprintf(stderr, "    -L enable SDRplay API debug log level (default: disabled)\n");
     fprintf(stderr, "    -T measure callback time difference only (no output) (default: disabled)\n");
     fprintf(stderr, "    -H get histogram of sample values (no output) (default: disabled)\n");
