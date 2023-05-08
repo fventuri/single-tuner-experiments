@@ -74,6 +74,7 @@ int main(int argc, char *argv[])
     int trackTime = 1;
     int refreshRateTime = 2048;
     double frequency = 100e6;
+    const char *antenna = NULL;
     int streaming_time = 10;  /* streaming time in seconds */
     const char *output_file = NULL;
     int debug_enable = 0;
@@ -81,7 +82,7 @@ int main(int argc, char *argv[])
     int samples_histogram_only = 0;
 
     int c;
-    while ((c = getopt(argc, argv, "s:r:d:i:b:g:l:DIy:f:x:o:LTHh")) != -1) {
+    while ((c = getopt(argc, argv, "s:r:d:i:b:g:l:DIy:f:a:x:o:LTHh")) != -1) {
         switch (c) {
             case 's':
                 serial_number = optarg;
@@ -143,6 +144,9 @@ int main(int argc, char *argv[])
                     fprintf(stderr, "invalid frequency: %s\n", optarg);
                     exit(1);
                 }
+                break;
+            case 'a':
+                antenna = optarg;
                 break;
             case 'x':
                 if (sscanf(optarg, "%d", &streaming_time) != 1) {
@@ -238,7 +242,13 @@ int main(int argc, char *argv[])
             exit(1);
         } else {
             device.rspDuoMode = sdrplay_api_RspDuoMode_Single_Tuner;
-            device.tuner = sdrplay_api_Tuner_A;
+            if (strcmp(antenna, "Tuner 1 50 ohm") == 0 || strcmp(antenna, "High Z") == 0) {
+                device.tuner = sdrplay_api_Tuner_A;
+            } else if (strcmp(antenna, "Tuner 2 50 ohm") == 0) {
+                device.tuner = sdrplay_api_Tuner_B;
+            } else {
+                device.tuner = sdrplay_api_Tuner_A;
+            }
             device.rspDuoSampleFreq = 0;
         }
     }
@@ -296,6 +306,32 @@ int main(int argc, char *argv[])
     rx_channel_params->tunerParams.dcOffsetTuner.trackTime = trackTime;
     rx_channel_params->tunerParams.dcOffsetTuner.refreshRateTime = refreshRateTime;
     rx_channel_params->tunerParams.rfFreq.rfHz = frequency;
+    if (device.hwVer == SDRPLAY_RSP2_ID) {
+        if (strcmp(antenna, "Antenna A") == 0) {
+            rx_channel_params->rsp2TunerParams.antennaSel = sdrplay_api_Rsp2_ANTENNA_A;
+            rx_channel_params->rsp2TunerParams.amPortSel = sdrplay_api_Rsp2_AMPORT_2;
+        } else if (strcmp(antenna, "Antenna B") == 0) {
+            rx_channel_params->rsp2TunerParams.antennaSel = sdrplay_api_Rsp2_ANTENNA_B;
+            rx_channel_params->rsp2TunerParams.amPortSel = sdrplay_api_Rsp2_AMPORT_2;
+        } else if (strcmp(antenna, "Hi-Z") == 0) {
+            rx_channel_params->rsp2TunerParams.antennaSel = sdrplay_api_Rsp2_ANTENNA_A;
+            rx_channel_params->rsp2TunerParams.amPortSel = sdrplay_api_Rsp2_AMPORT_1;
+        }
+    } else if (device.hwVer == SDRPLAY_RSPduo_ID) {
+        if (strcmp(antenna, "High Z") == 0) {
+            rx_channel_params->rspDuoTunerParams.tuner1AmPortSel = sdrplay_api_RspDuo_AMPORT_1;
+        } else {
+            rx_channel_params->rspDuoTunerParams.tuner1AmPortSel = sdrplay_api_RspDuo_AMPORT_2;
+        }
+    } else if (device.hwVer == SDRPLAY_RSPdx_ID) {
+        if (strcmp(antenna, "Antenna A") == 0) {
+            device_params->devParams->rspDxParams.antennaSel = sdrplay_api_RspDx_ANTENNA_A;
+        } else if (strcmp(antenna, "Antenna A") == 0) {
+            device_params->devParams->rspDxParams.antennaSel = sdrplay_api_RspDx_ANTENNA_B;
+        } else if (strcmp(antenna, "Antenna C") == 0) {
+            device_params->devParams->rspDxParams.antennaSel = sdrplay_api_RspDx_ANTENNA_C;
+        }
+    }
 
     /* quick check */
     sdrplay_api_CallbackFnsT callbackNullFns = { NULL, NULL, NULL };
@@ -310,6 +346,13 @@ int main(int argc, char *argv[])
     /* print settings */
     fprintf(stderr, "SerNo=%s hwVer=%d tuner=0x%02x\n", device.SerNo, device.hwVer, device.tuner);
     fprintf(stderr, "SR=%.0lf LO=%.0lf BW=%d If=%d Dec=%d IFagc=%d IFgain=%d LNAgain=%d\n", device_params->devParams->fsFreq.fsHz, rx_channel_params->tunerParams.rfFreq.rfHz, rx_channel_params->tunerParams.bwType, rx_channel_params->tunerParams.ifType, rx_channel_params->ctrlParams.decimation.decimationFactor, rx_channel_params->ctrlParams.agc.enable, rx_channel_params->tunerParams.gain.gRdB, rx_channel_params->tunerParams.gain.LNAstate);
+    if (device.hwVer == SDRPLAY_RSP2_ID) {
+        fprintf(stderr, "antenna=%d amPort=%d\n", rx_channel_params->rsp2TunerParams.antennaSel, rx_channel_params->rsp2TunerParams.antennaSel);
+    } else if (device.hwVer == SDRPLAY_RSPduo_ID) {
+        fprintf(stderr, "tuner=%d amPort=%d\n", device.tuner, rx_channel_params->rspDuoTunerParams.tuner1AmPortSel);
+    } else if (device.hwVer == SDRPLAY_RSPdx_ID) {
+        fprintf(stderr, "antenna=%d\n", device_params->devParams->rspDxParams.antennaSel);
+    }
     fprintf(stderr, "DCenable=%d IQenable=%d dcCal=%d speedUp=%d trackTime=%d refreshRateTime=%d\n", (int)(rx_channel_params->ctrlParams.dcOffset.DCenable), (int)(rx_channel_params->ctrlParams.dcOffset.IQenable), (int)(rx_channel_params->tunerParams.dcOffsetTuner.dcCal), (int)(rx_channel_params->tunerParams.dcOffsetTuner.speedUp), rx_channel_params->tunerParams.dcOffsetTuner.trackTime, rx_channel_params->tunerParams.dcOffsetTuner.refreshRateTime);
 
     int init_ok = 1;
@@ -604,6 +647,7 @@ static void usage(const char* progname)
     fprintf(stderr, "    -I disable post tuner I/Q balance compensation (default: enabled)\n");
     fprintf(stderr, "    -y tuner DC offset compensation parameters <dcCal,speedUp,trackTime,refeshRateTime> (default: 3,0,1,2048)\n");
     fprintf(stderr, "    -f <center frequency>\n");
+    fprintf(stderr, "    -a <antenna>\n");
     fprintf(stderr, "    -x <streaming time (s)> (default: 10s)\n");
     fprintf(stderr, "    -o <output file> ('-' for stdout; 'SAMPLERATE' in the file name will be replaced by the estimated sample rate in kHz)\n");
     fprintf(stderr, "    -L enable SDRplay API debug log level (default: disabled)\n");
