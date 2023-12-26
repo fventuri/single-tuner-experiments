@@ -242,12 +242,14 @@ int main(int argc, char *argv[])
             exit(1);
         } else {
             device.rspDuoMode = sdrplay_api_RspDuoMode_Single_Tuner;
-            if (strcmp(antenna, "Tuner 1 50 ohm") == 0 || strcmp(antenna, "High Z") == 0) {
-                device.tuner = sdrplay_api_Tuner_A;
-            } else if (strcmp(antenna, "Tuner 2 50 ohm") == 0) {
-                device.tuner = sdrplay_api_Tuner_B;
-            } else {
-                device.tuner = sdrplay_api_Tuner_A;
+            if (antenna != NULL) {
+                if (strcmp(antenna, "Tuner 1 50 ohm") == 0 || strcmp(antenna, "High Z") == 0) {
+                    device.tuner = sdrplay_api_Tuner_A;
+                } else if (strcmp(antenna, "Tuner 2 50 ohm") == 0) {
+                    device.tuner = sdrplay_api_Tuner_B;
+                } else {
+                    device.tuner = sdrplay_api_Tuner_A;
+                }
             }
             device.rspDuoSampleFreq = 0;
         }
@@ -306,30 +308,32 @@ int main(int argc, char *argv[])
     rx_channel_params->tunerParams.dcOffsetTuner.trackTime = trackTime;
     rx_channel_params->tunerParams.dcOffsetTuner.refreshRateTime = refreshRateTime;
     rx_channel_params->tunerParams.rfFreq.rfHz = frequency;
-    if (device.hwVer == SDRPLAY_RSP2_ID) {
-        if (strcmp(antenna, "Antenna A") == 0) {
-            rx_channel_params->rsp2TunerParams.antennaSel = sdrplay_api_Rsp2_ANTENNA_A;
-            rx_channel_params->rsp2TunerParams.amPortSel = sdrplay_api_Rsp2_AMPORT_2;
-        } else if (strcmp(antenna, "Antenna B") == 0) {
-            rx_channel_params->rsp2TunerParams.antennaSel = sdrplay_api_Rsp2_ANTENNA_B;
-            rx_channel_params->rsp2TunerParams.amPortSel = sdrplay_api_Rsp2_AMPORT_2;
-        } else if (strcmp(antenna, "Hi-Z") == 0) {
-            rx_channel_params->rsp2TunerParams.antennaSel = sdrplay_api_Rsp2_ANTENNA_A;
-            rx_channel_params->rsp2TunerParams.amPortSel = sdrplay_api_Rsp2_AMPORT_1;
-        }
-    } else if (device.hwVer == SDRPLAY_RSPduo_ID) {
-        if (strcmp(antenna, "High Z") == 0) {
-            rx_channel_params->rspDuoTunerParams.tuner1AmPortSel = sdrplay_api_RspDuo_AMPORT_1;
-        } else {
-            rx_channel_params->rspDuoTunerParams.tuner1AmPortSel = sdrplay_api_RspDuo_AMPORT_2;
-        }
-    } else if (device.hwVer == SDRPLAY_RSPdx_ID) {
-        if (strcmp(antenna, "Antenna A") == 0) {
-            device_params->devParams->rspDxParams.antennaSel = sdrplay_api_RspDx_ANTENNA_A;
-        } else if (strcmp(antenna, "Antenna A") == 0) {
-            device_params->devParams->rspDxParams.antennaSel = sdrplay_api_RspDx_ANTENNA_B;
-        } else if (strcmp(antenna, "Antenna C") == 0) {
-            device_params->devParams->rspDxParams.antennaSel = sdrplay_api_RspDx_ANTENNA_C;
+    if (antenna != NULL) {
+        if (device.hwVer == SDRPLAY_RSP2_ID) {
+            if (strcmp(antenna, "Antenna A") == 0) {
+                rx_channel_params->rsp2TunerParams.antennaSel = sdrplay_api_Rsp2_ANTENNA_A;
+                rx_channel_params->rsp2TunerParams.amPortSel = sdrplay_api_Rsp2_AMPORT_2;
+            } else if (strcmp(antenna, "Antenna B") == 0) {
+                rx_channel_params->rsp2TunerParams.antennaSel = sdrplay_api_Rsp2_ANTENNA_B;
+                rx_channel_params->rsp2TunerParams.amPortSel = sdrplay_api_Rsp2_AMPORT_2;
+            } else if (strcmp(antenna, "Hi-Z") == 0) {
+                rx_channel_params->rsp2TunerParams.antennaSel = sdrplay_api_Rsp2_ANTENNA_A;
+                rx_channel_params->rsp2TunerParams.amPortSel = sdrplay_api_Rsp2_AMPORT_1;
+            }
+        } else if (device.hwVer == SDRPLAY_RSPduo_ID) {
+            if (strcmp(antenna, "High Z") == 0) {
+                rx_channel_params->rspDuoTunerParams.tuner1AmPortSel = sdrplay_api_RspDuo_AMPORT_1;
+            } else {
+                rx_channel_params->rspDuoTunerParams.tuner1AmPortSel = sdrplay_api_RspDuo_AMPORT_2;
+            }
+        } else if (device.hwVer == SDRPLAY_RSPdx_ID) {
+            if (strcmp(antenna, "Antenna A") == 0) {
+                device_params->devParams->rspDxParams.antennaSel = sdrplay_api_RspDx_ANTENNA_A;
+            } else if (strcmp(antenna, "Antenna B") == 0) {
+                device_params->devParams->rspDxParams.antennaSel = sdrplay_api_RspDx_ANTENNA_B;
+            } else if (strcmp(antenna, "Antenna C") == 0) {
+                device_params->devParams->rspDxParams.antennaSel = sdrplay_api_RspDx_ANTENNA_C;
+            }
         }
     }
 
