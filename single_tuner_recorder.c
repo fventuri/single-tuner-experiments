@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright 2023 Franco Venturi.
+ * Copyright 2023-2024 Franco Venturi.
  *
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
@@ -220,7 +220,8 @@ int main(int argc, char *argv[])
     }
     int device_index = -1;
     for (unsigned int i = 0; i < ndevices; i++) {
-        if (serial_number == NULL || strcmp(devices[i].SerNo, serial_number) == 0) {
+        if (devices[i].valid &&
+            (serial_number == NULL || strcmp(devices[i].SerNo, serial_number) == 0)) {
             device_index = i;
             break;
         }
@@ -606,22 +607,9 @@ int main(int argc, char *argv[])
         free(rx_context_samples_histogram.q_histogram);
     }
 
-    err = sdrplay_api_LockDeviceApi();
-    if (err != sdrplay_api_Success) {
-        fprintf(stderr, "sdrplay_api_LockDeviceApi() failed: %s\n", sdrplay_api_GetErrorString(err));
-        sdrplay_api_Close();
-        exit(1);
-    }
     err = sdrplay_api_ReleaseDevice(&device);
     if (err != sdrplay_api_Success) {
         fprintf(stderr, "sdrplay_api_ReleaseDevice() failed: %s\n", sdrplay_api_GetErrorString(err));
-        sdrplay_api_UnlockDeviceApi();
-        sdrplay_api_Close();
-        exit(1);
-    }
-    err = sdrplay_api_UnlockDeviceApi();
-    if (err != sdrplay_api_Success) {
-        fprintf(stderr, "sdrplay_api_UnlockDeviceApi() failed: %s\n", sdrplay_api_GetErrorString(err));
         sdrplay_api_Close();
         exit(1);
     }
