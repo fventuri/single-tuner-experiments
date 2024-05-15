@@ -335,6 +335,14 @@ int main(int argc, char *argv[])
             } else if (strcmp(antenna, "Antenna C") == 0) {
                 device_params->devParams->rspDxParams.antennaSel = sdrplay_api_RspDx_ANTENNA_C;
             }
+        } else if (device.hwVer == SDRPLAY_RSPdxR2_ID) {
+            if (strcmp(antenna, "Antenna A") == 0) {
+                device_params->devParams->rspDxParams.antennaSel = sdrplay_api_RspDx_ANTENNA_A;
+            } else if (strcmp(antenna, "Antenna B") == 0) {
+                device_params->devParams->rspDxParams.antennaSel = sdrplay_api_RspDx_ANTENNA_B;
+            } else if (strcmp(antenna, "Antenna C") == 0) {
+                device_params->devParams->rspDxParams.antennaSel = sdrplay_api_RspDx_ANTENNA_C;
+            }
         }
     }
 
@@ -356,6 +364,8 @@ int main(int argc, char *argv[])
     } else if (device.hwVer == SDRPLAY_RSPduo_ID) {
         fprintf(stderr, "tuner=%d amPort=%d\n", device.tuner, rx_channel_params->rspDuoTunerParams.tuner1AmPortSel);
     } else if (device.hwVer == SDRPLAY_RSPdx_ID) {
+        fprintf(stderr, "antenna=%d\n", device_params->devParams->rspDxParams.antennaSel);
+    } else if (device.hwVer == SDRPLAY_RSPdxR2_ID) {
         fprintf(stderr, "antenna=%d\n", device_params->devParams->rspDxParams.antennaSel);
     }
     fprintf(stderr, "DCenable=%d IQenable=%d dcCal=%d speedUp=%d trackTime=%d refreshRateTime=%d\n", (int)(rx_channel_params->ctrlParams.dcOffset.DCenable), (int)(rx_channel_params->ctrlParams.dcOffset.IQenable), (int)(rx_channel_params->tunerParams.dcOffsetTuner.dcCal), (int)(rx_channel_params->tunerParams.dcOffsetTuner.speedUp), rx_channel_params->tunerParams.dcOffsetTuner.trackTime, rx_channel_params->tunerParams.dcOffsetTuner.refreshRateTime);
