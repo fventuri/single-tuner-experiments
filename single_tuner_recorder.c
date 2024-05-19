@@ -75,6 +75,8 @@ int main(int argc, char *argv[])
     int refreshRateTime = 2048;
     double frequency = 100e6;
     const char *antenna = NULL;
+    int hdrEnable = 0;
+    sdrplay_api_RspDx_HdrModeBwT hdrBw = sdrplay_api_RspDx_HDRMODE_BW_0_200;
     int streaming_time = 10;  /* streaming time in seconds */
     const char *output_file = NULL;
     int debug_enable = 0;
@@ -82,7 +84,7 @@ int main(int argc, char *argv[])
     int samples_histogram_only = 0;
 
     int c;
-    while ((c = getopt(argc, argv, "s:r:d:i:b:g:l:DIy:f:a:x:o:LTHh")) != -1) {
+    while ((c = getopt(argc, argv, "s:r:d:i:b:g:l:DIy:f:a:Kk:x:o:LTHh")) != -1) {
         switch (c) {
             case 's':
                 serial_number = optarg;
@@ -147,6 +149,15 @@ int main(int argc, char *argv[])
                 break;
             case 'a':
                 antenna = optarg;
+                break;
+            case 'K':
+                hdrEnable = 1;
+                break;
+            case 'k':
+                if (sscanf(optarg, "%d", (int *)(&hdrBw)) != 1) {
+                    fprintf(stderr, "invalid HDR bandwidth: %s\n", optarg);
+                    exit(1);
+                }
                 break;
             case 'x':
                 if (sscanf(optarg, "%d", &streaming_time) != 1) {
@@ -346,6 +357,14 @@ int main(int argc, char *argv[])
         }
     }
 
+    if (device.hwVer == SDRPLAY_RSPdx_ID) {
+        device_params->devParams->rspDxParams.hdrEnable = hdrEnable;
+        rx_channel_params->rspDxTunerParams.hdrBw = hdrBw;
+    } else if (device.hwVer == SDRPLAY_RSPdxR2_ID) {
+        device_params->devParams->rspDxParams.hdrEnable = hdrEnable;
+        rx_channel_params->rspDxTunerParams.hdrBw = hdrBw;
+    }
+
     /* quick check */
     sdrplay_api_CallbackFnsT callbackNullFns = { NULL, NULL, NULL };
     err = sdrplay_api_Init(device.dev, &callbackNullFns, NULL);
@@ -364,9 +383,9 @@ int main(int argc, char *argv[])
     } else if (device.hwVer == SDRPLAY_RSPduo_ID) {
         fprintf(stderr, "tuner=%d amPort=%d\n", device.tuner, rx_channel_params->rspDuoTunerParams.tuner1AmPortSel);
     } else if (device.hwVer == SDRPLAY_RSPdx_ID) {
-        fprintf(stderr, "antenna=%d\n", device_params->devParams->rspDxParams.antennaSel);
+        fprintf(stderr, "antenna=%d hdrEnable=%d hdrBw=%d\n", device_params->devParams->rspDxParams.antennaSel, device_params->devParams->rspDxParams.hdrEnable, rx_channel_params->rspDxTunerParams.hdrBw);
     } else if (device.hwVer == SDRPLAY_RSPdxR2_ID) {
-        fprintf(stderr, "antenna=%d\n", device_params->devParams->rspDxParams.antennaSel);
+        fprintf(stderr, "antenna=%d hdrEnable=%d hdrBw=%d\n", device_params->devParams->rspDxParams.antennaSel, device_params->devParams->rspDxParams.hdrEnable, rx_channel_params->rspDxTunerParams.hdrBw);
     }
     fprintf(stderr, "DCenable=%d IQenable=%d dcCal=%d speedUp=%d trackTime=%d refreshRateTime=%d\n", (int)(rx_channel_params->ctrlParams.dcOffset.DCenable), (int)(rx_channel_params->ctrlParams.dcOffset.IQenable), (int)(rx_channel_params->tunerParams.dcOffsetTuner.dcCal), (int)(rx_channel_params->tunerParams.dcOffsetTuner.speedUp), rx_channel_params->tunerParams.dcOffsetTuner.trackTime, rx_channel_params->tunerParams.dcOffsetTuner.refreshRateTime);
 
@@ -447,6 +466,16 @@ int main(int argc, char *argv[])
     if (rx_channel_params->tunerParams.dcOffsetTuner.refreshRateTime != refreshRateTime) {
         fprintf(stderr, "unexpected change - dcOffsetTuner.refreshRateTime: %d -> %d\n", refreshRateTime, rx_channel_params->tunerParams.dcOffsetTuner.refreshRateTime);
         init_ok = 0;
+    }
+    if (device.hwVer == SDRPLAY_RSPdx_ID || device.hwVer == SDRPLAY_RSPdxR2_ID) {
+        if (device_params->devParams->rspDxParams.hdrEnable != hdrEnable) {
+            fprintf(stderr, "unexpected change - hdrEnable: %d -> %d\n", hdrEnable, device_params->devParams->rspDxParams.hdrEnable);
+            init_ok = 0;
+        }
+        if (rx_channel_params->rspDxTunerParams.hdrBw != hdrBw) {
+            fprintf(stderr, "unexpected change - hdrBw: %d -> %d\n", hdrBw, rx_channel_params->rspDxTunerParams.hdrBw);
+            init_ok = 0;
+        }
     }
     if (rx_channel_params->tunerParams.rfFreq.rfHz != frequency) {
         fprintf(stderr, "unexpected change - rfHz: %.0lf -> %.0lf\n", frequency, rx_channel_params->tunerParams.rfFreq.rfHz);
@@ -650,6 +679,8 @@ static void usage(const char* progname)
     fprintf(stderr, "    -y tuner DC offset compensation parameters <dcCal,speedUp,trackTime,refeshRateTime> (default: 3,0,1,2048)\n");
     fprintf(stderr, "    -f <center frequency>\n");
     fprintf(stderr, "    -a <antenna>\n");
+    fprintf(stderr, "    -K enable HDR mode for RSPdx/RSPdx-R2\n");
+    fprintf(stderr, "    -k <HDR mode bandwidth> (for RSPdx/RSPdx-R2 only)\n");
     fprintf(stderr, "    -x <streaming time (s)> (default: 10s)\n");
     fprintf(stderr, "    -o <output file> ('-' for stdout; 'SAMPLERATE' in the file name will be replaced by the estimated sample rate in kHz)\n");
     fprintf(stderr, "    -L enable SDRplay API debug log level (default: disabled)\n");
